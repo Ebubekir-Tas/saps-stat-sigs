@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stick Arena Stat Generator</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+
+<div class="App">
+  <div class="input-container">
+    <input id="userInput" type="text" placeholder="Enter username" />
+    <button id="btn">Generate</button>
+  </div>
+
+  <div class="statgen-container" id="output"></div>
+</div>
+<script src="statsUtils.js"></script>
+
+<script>
+
+
+  const input = document.getElementById('userInput');
+  const button = document.getElementById('btn');
+  const output = document.getElementById('output');
+
+  async function handleSubmit() {
+    const username = input.value.trim();
+    if (!username) return;
+
+    try {
+      const res = await fetch(
+        `https://playstickarena.com/api.php/?method=xgen.stickarena.stats.get&username=${username}`
+      );
+      const text = await res.text();
+
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(text, 'text/xml');
+      const userNode = xml.querySelector('user');
+
+      if (!userNode || userNode.getAttribute('username') === '') {
+        output.innerHTML = `<div class="Username">Account does not exist</div>`;
+        return;
+      }
+
+      const user = userNode.getAttribute('username');
+      const perms = userNode.getAttribute('perms');
+
+      const wins = userNode.querySelector('stat[id="wins"]').textContent;
+      const losses = userNode.querySelector('stat[id="losses"]').textContent;
+      const kills = userNode.querySelector('stat[id="kills"]').textContent;
+      const deaths = userNode.querySelector('stat[id="deaths"]').textContent;
+      const totalRounds = userNode.querySelector('stat[id="rounds"]').textContent;
+      const ballistick = userNode.querySelector('stat[id="ballistick"]').textContent;
+
+      const roundsCompleted = parseInt(wins) + parseInt(losses);
+      const roundsForfeited = parseInt(totalRounds) - roundsCompleted;
+
+      let rcperc = 0;
+      let rfperc = 0;
+
+      if (parseInt(totalRounds)) {
+        rcperc = ((roundsCompleted / totalRounds) * 100).toFixed(0);
+        rfperc = ((roundsForfeited / totalRounds) * 100).toFixed(0);
+      }
+
+      let akpr = roundsCompleted ? (kills / roundsCompleted).toFixed(2) : 0;
+      let adpr = roundsCompleted ? (deaths / roundsCompleted).toFixed(2) : 0;
+
+      let kd = deaths === '0'
+        ? (kills / 1).toFixed(2)
+        : (kills / deaths).toFixed(2);
+
+      let wl = losses === '0'
+        ? (wins / 1).toFixed(2)
+        : (wins / losses).toFixed(2);
+
+      const esthrs = ((roundsCompleted * 5 + (roundsForfeited * 5) / 3) / 60).toFixed(0);
+
+      const rank = calculateRank(parseInt(kills));
+      const rating = calculateRating(kd, rank);
+      const highscoreRank = await getHighscores(user.toLowerCase());
+
+      output.innerHTML = `
+        <div class="Username">${user}</div>
+
+        <div class="stats-container">
+          <div class="StatsFirst">
+            <p>Kills: ${kills}</p>
+            <p>Deaths: ${deaths}</p>
+            <p>Wins: ${wins}</p>
+            <p>Losses: ${losses}</p>
+          </div>
+
+          <div class="StatsSecond">
+            <p>K/D: ${kd}</p>
+            <p>W/L: ${wl}</p>
+            <p>Avg. KPR: ${akpr}</p>
+            <p>Avg. DPR: ${adpr}</p>
+          </div>
+
+          <div class="StatsThird">
+            <p>Total Rounds: ${totalRounds}</p>
+            <p>Rounds Completed: ${roundsCompleted} (${rcperc}%)</p>
+            <p>Rounds Forfeited: ${roundsForfeited} (${rfperc}%)</p>
+            <p>Est. Hours Played: ${esthrs}</p>
+          </div>
+        </div>
+
+        ${kills >= 5 ? `<div class="rank-container"><img src="ranks/${rank}.gif"></div>` : ''}
+        ${ballistick === '1' ? `<div class="labpass-container"><img src="ranks/lp.gif"></div>` : ''}
+        ${perms >= 1 ? `<div class="mod-container"><img src="ranks/mod.gif"></div>` : ''}
+        ${perms === '-1' ? `<div class="banned-container"><img src="other/banned.png"></div>` : ''}
+
+        <div class="stickman-container"><img src="other/stickman.gif"></div>
+        <div class="stickEyes-container"><img src="other/eyes.gif"></div>
+
+        <div class="rating-container">${rating}</div>
+
+        ${
+          highscoreRank != null
+            ? `
+              <div class="medal-container"><img src="other/medal.gif"></div>
+              <div class="highscore-container">#${highscoreRank} Overall</div>
+            `
+            : ''
+        }
+      `;
+
+    } catch (err) {
+      console.error(err);
+      output.innerHTML = `<div class="Username">Error loading stats</div>`;
+    }
+  }
+
+  button.addEventListener('click', handleSubmit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleSubmit();
+  });
+</script>
+
+</body>
+</html>
